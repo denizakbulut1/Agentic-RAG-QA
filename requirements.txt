@@ -1,0 +1,11 @@
+langchain
+langchain-community
+langchain-openai
+pdfplumber
+faiss-cpu
+openai
+tiktoken
+lark
+python-dotenv
+pypdf
+pdfplumber
