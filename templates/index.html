@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agentic RAG System</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h1>Agentic RAG for Scientific Documents</h1>
+        <div id="upload-section" class="card">
+            <h2>1. Upload a Document (PDF)</h2>
+            <form id="upload-form">
+                <input type="file" id="file-input" name="file" accept=".pdf">
+                <button type="submit">Upload and Process</button>
+            </form>
+            <div id="upload-status" class="status"></div>
+        </div>
+        <div id="chat-section" class="card hidden">
+            <h2 id="chat-title">2. Ask Questions</h2>
+            <div id="chat-window"></div>
+            <div id="chat-input">
+                <input type="text" id="question-input" placeholder="Ask a question about the document...">
+                <button id="ask-button">Send</button>
+            </div>
+        </div>
+    </div>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
