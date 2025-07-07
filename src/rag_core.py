@@ -1,4 +1,3 @@
-# In src/rag_core.py
 
 import os
 from langchain_community.document_loaders import PyPDFLoader
