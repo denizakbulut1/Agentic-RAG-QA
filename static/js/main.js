@@ -1,3 +1,5 @@
+// static/js/main.js (Updated version)
+
 document.addEventListener('DOMContentLoaded', () => {
     const uploadForm = document.getElementById('upload-form');
     const uploadStatus = document.getElementById('upload-status');
@@ -6,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const questionInput = document.getElementById('question-input');
     const askButton = document.getElementById('ask-button');
 
+    // Handle File Upload (no changes here)
     uploadForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(uploadForm);
@@ -17,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         uploadStatus.textContent = 'Uploading and processing... This may take a moment.';
         uploadStatus.style.color = 'blue';
-        chatWindow.innerHTML = ''; // Clear previous chat
+        chatWindow.innerHTML = '';
         try {
             const response = await fetch('/upload', { method: 'POST', body: formData });
             const result = await response.json();
@@ -33,26 +36,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // Handle Asking a Question (THIS FUNCTION IS UPDATED)
     const handleAskQuestion = async () => {
         const question = questionInput.value.trim();
         if (!question) return;
+
         addMessageToChat(question, 'user');
         questionInput.value = '';
+
+        // --- NEW: Create and show the thinking indicator ---
+        const thinkingIndicator = document.createElement('div');
+        thinkingIndicator.classList.add('message', 'thinking-indicator');
+        thinkingIndicator.textContent = 'Agent is thinking';
+        chatWindow.appendChild(thinkingIndicator);
+        chatWindow.scrollTop = chatWindow.scrollHeight; // Scroll to show it
+
         try {
             const response = await fetch('/ask', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ question: question }),
             });
+
             const result = await response.json();
-            if (response.ok) { addMessageToChat(result.answer, 'bot'); } 
-            else { throw new Error(result.error || 'Unknown error'); }
-        } catch (error) { addMessageToChat(`Error: ${error.message}`, 'bot'); }
+
+            // --- NEW: Remove the indicator before showing the final answer ---
+            thinkingIndicator.remove();
+
+            if (response.ok) {
+                addMessageToChat(result.answer, 'bot');
+            } else {
+                throw new Error(result.error || 'Unknown error occurred.');
+            }
+        } catch (error) {
+            // --- NEW: Also remove the indicator on error ---
+            thinkingIndicator.remove();
+            addMessageToChat(`Error: ${error.message}`, 'bot');
+        }
     };
 
     askButton.addEventListener('click', handleAskQuestion);
-    questionInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { handleAskQuestion(); }});
+    questionInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            handleAskQuestion();
+        }
+    });
 
+    // Helper to add messages to the chat window (no changes here)
     function addMessageToChat(text, sender) {
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', `${sender}-message`);
