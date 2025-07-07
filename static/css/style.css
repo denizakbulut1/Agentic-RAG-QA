@@ -12,3 +12,28 @@ button:hover { background-color: #0056b3; }
 .message { padding: 8px 12px; border-radius: 12px; max-width: 80%; line-height: 1.4; }
 .user-message { background-color: #007bff; color: white; align-self: flex-end; }
 .bot-message { background-color: #e9ecef; color: #333; align-self: flex-start; white-space: pre-wrap; }
+
+/* --- Add this new code to the end of style.css --- */
+
+.thinking-indicator {
+    color: #555;
+    font-style: italic;
+    background-color: #e9ecef; /* Same as bot message */
+    align-self: flex-start;     /* Align left like a bot message */
+}
+
+/* The animated dots are created using a ::after pseudo-element */
+.thinking-indicator::after {
+    display: inline-block;
+    animation: ellipsis 1.4s infinite;
+    content: ".";
+    width: 1em; /* Reserve space for up to three dots */
+    text-align: left;
+}
+
+@keyframes ellipsis {
+    0%   { content: "."; }
+    33%  { content: ".."; }
+    66%  { content: "..."; }
+    100% { content: "."; }
+}
