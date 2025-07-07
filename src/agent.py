@@ -1,4 +1,4 @@
-# src/agent.py (With new list_table_of_contents tool)
+# src/agent.py (Final version with title-based structure analysis)
 
 import json
 import re
@@ -10,7 +10,6 @@ from src.rag_core import create_qa_chain, create_qa_chain_for_section
 from src.utils import OPENAI_API_KEY
 from langchain_core.exceptions import OutputParserException
 
-# This error handler is perfect, no changes needed.
 def _handle_parsing_error(error: OutputParserException) -> str:
     response = (
         "I'm sorry, my previous response was not formatted correctly. "
@@ -21,6 +20,7 @@ def _handle_parsing_error(error: OutputParserException) -> str:
     )
     return response
 
+
 class DocumentAgent:
     def __init__(self, file_path: str):
         if not file_path:
@@ -28,16 +28,64 @@ class DocumentAgent:
         self.file_path = file_path
         self.rag_chain_cache = {}
         self.toc_cache = None
+        self.structure_analysis_cache = None
         print(f"DocumentAgent initialized for: {self.file_path}")
         print("RAG chain cache is ready for this session.")
         self.llm = ChatOpenAI(model="gpt-4-turbo-preview", openai_api_key=OPENAI_API_KEY, temperature=0)
         self.agent_executor = self._setup_agent_executor()
 
-    # --- Tool Methods ---
+    # ---- Tool Methods ----
 
-    # No changes to _classify_document_type
+    # --- THIS IS THE NEW, SMARTER ANALYSIS METHOD ---
+    def _analyze_thesis_structure(self, _: str) -> str:
+        """
+        Analyzes the thesis's Table of Contents to determine if it's a monograph or a 
+        compilation of papers by looking for non-generic chapter titles.
+        """
+        if self.structure_analysis_cache:
+            print("--- Retrieving thesis structure analysis from cache ---")
+            return self.structure_analysis_cache
+            
+        print("--- TOOL: Analyzing thesis structure based on chapter titles ---")
+        toc = self._get_table_of_contents()
+        
+        if isinstance(toc, str):
+            return f"Cannot analyze structure, ToC could not be parsed: {toc}"
+
+        # List of common, non-paper chapter titles (case-insensitive)
+        generic_titles = [
+            "introduction", "summary", "conclusion", "discussion", "background",
+            "literature review", "methodology", "methods", "references", "bibliography",
+            "acknowledgements", "abstract", "samenvatting", "dankwoord"
+        ]
+
+        identified_papers = []
+        for item in toc:
+            title = item.get("title", "").lower().strip()
+            
+            # Check if the title is generic. We check if any generic term is IN the title.
+            is_generic = any(gen_title in title for gen_title in generic_titles)
+            
+            # A chapter is likely a paper if its title is not generic and is reasonably long
+            if not is_generic and len(title) > 15:
+                # Use the original title for display
+                identified_papers.append(item.get("title", "Unknown Title"))
+
+        if not identified_papers:
+            result = "Analysis complete: This document appears to be a standard monograph-style thesis, as most chapters have generic titles like 'Introduction' or 'Conclusion'."
+        else:
+            papers_list = "\n- ".join(identified_papers)
+            result = (
+                f"Analysis complete: This thesis appears to be a compilation of {len(identified_papers)} papers. "
+                "The following non-generic chapters have been identified as potential standalone papers:\n"
+                f"- {papers_list}"
+            )
+        
+        self.structure_analysis_cache = result
+        return result
+
+    # All other tool methods remain unchanged and correct
     def _classify_document_type(self, _: str) -> str:
-        # ... (same as before)
         print("--- TOOL: Classifying document type ---")
         extracted_text = ""
         try:
@@ -57,9 +105,7 @@ class DocumentAgent:
         doc_type = chain.invoke({}).content.strip().lower()
         return doc_type if doc_type in ["thesis", "paper"] else "unknown"
 
-    # _get_table_of_contents helper remains the same internal function
     def _get_table_of_contents(self) -> list | str:
-        # ... (same as before)
         if self.toc_cache is not None:
             print("--- Retrieving ToC from cache ---")
             return self.toc_cache
@@ -72,8 +118,7 @@ class DocumentAgent:
                     toc_text += pdf.pages[i].extract_text(x_tolerance=1, y_tolerance=3) or ""
         except Exception as e:
             return f"Error reading PDF for ToC: {e}"
-        if not toc_text.strip():
-            return "No text could be extracted to find a ToC."
+        if not toc_text.strip(): return "No text could be extracted to find a ToC."
         parser_model = ChatOpenAI(model="gpt-3.5-turbo", openai_api_key=OPENAI_API_KEY, temperature=0)
         prompt = ChatPromptTemplate.from_template(
             "You are a text-processing utility. Analyze the following text and extract the Table of Contents. "
@@ -94,38 +139,19 @@ class DocumentAgent:
             self.toc_cache = error_msg
             return error_msg
 
-    # --- NEW TOOL METHOD: _list_table_of_contents ---
     def _list_table_of_contents(self, _: str) -> str:
-        """
-        Gets the table of contents and formats it as a human-readable string for the agent.
-        """
         print("--- TOOL: Listing Table of Contents ---")
         toc = self._get_table_of_contents()
-        
-        if isinstance(toc, str): # Handle error case
-            return f"Could not list ToC: {toc}"
-        
-        if not toc:
-            return "The Table of Contents is empty or could not be found."
-            
-        # Format the JSON into a nice string for the LLM to read
-        formatted_list = []
-        for i, item in enumerate(toc):
-            title = item.get('title', 'N/A')
-            page = item.get('page', 'N/A')
-            formatted_list.append(f"{i+1}. {title} (page {page})")
-            
+        if isinstance(toc, str): return f"Could not list ToC: {toc}"
+        if not toc: return "The Table of Contents is empty or could not be found."
+        formatted_list = [f"{i+1}. {item.get('title', 'N/A')} (page {item.get('page', 'N/A')})" for i, item in enumerate(toc)]
         return "\n".join(formatted_list)
 
-    # _get_page_range_for_chapter and the other tools remain the same
     def _get_page_range_for_chapter(self, chapter_identifier: str) -> str:
-        # ... (same as before)
         print(f"--- TOOL: Getting page range for '{chapter_identifier}' ---")
         toc = self._get_table_of_contents()
-        if isinstance(toc, str):
-            return f"Could not get page range because ToC could not be parsed: {toc}"
-        if not toc:
-            return "Could not find a table of contents to search."
+        if isinstance(toc, str): return f"Could not get page range because ToC could not be parsed: {toc}"
+        if not toc: return "Could not find a table of contents to search."
         norm_identifier = chapter_identifier.lower().replace("chapter", "").strip()
         found_chapter_index = -1
         for i, item in enumerate(toc):
@@ -133,18 +159,14 @@ class DocumentAgent:
             if norm_identifier in norm_title or re.match(f"^{re.escape(norm_identifier)}[ .:]", norm_title):
                 found_chapter_index = i
                 break
-        if found_chapter_index == -1:
-            return f"Could not find a chapter matching '{chapter_identifier}' in the Table of Contents."
+        if found_chapter_index == -1: return f"Could not find a chapter matching '{chapter_identifier}' in the Table of Contents."
         start_page = toc[found_chapter_index]["page"]
-        if found_chapter_index + 1 < len(toc):
-            end_page = toc[found_chapter_index + 1]["page"] - 1
-        else:
-            end_page = start_page + 100
+        if found_chapter_index + 1 < len(toc): end_page = toc[found_chapter_index + 1]["page"] - 1
+        else: end_page = start_page + 100
         result = {"start_page": start_page, "end_page": end_page}
         return json.dumps(result)
 
     def _answer_paper_question(self, query: str) -> str:
-        # ... (same as before)
         print(f"--- TOOL: Answering question for entire paper. Query: '{query}' ---")
         cache_key = self.file_path
         if cache_key not in self.rag_chain_cache:
@@ -155,85 +177,75 @@ class DocumentAgent:
         return result.get("answer", "No answer could be generated.")
 
     def _answer_question_on_section(self, tool_input: str) -> str:
-        # ... (same as before)
         try:
             params = json.loads(tool_input)
-            query = params["query"]
-            start_page = int(params["start_page"])
-            end_page = int(params["end_page"])
+            query, start_page, end_page = params["query"], int(params["start_page"]), int(params["end_page"])
             print(f"--- TOOL: Answering question on section (p{start_page}-{end_page}). Query: '{query}' ---")
         except (json.JSONDecodeError, KeyError, TypeError) as e:
-            return f"Error: Invalid input format for tool. Expected a JSON string with 'query', 'start_page', and 'end_page'. Details: {e}"
+            return f"Error: Invalid input format. Expected JSON with 'query', 'start_page', 'end_page'. Details: {e}"
         cache_key = f"{self.file_path}_{start_page}_{end_page}"
         if cache_key not in self.rag_chain_cache:
             print(f"--- RAG chain for section p{start_page}-{end_page} not in cache. Creating... ---")
             try:
                 self.rag_chain_cache[cache_key] = create_qa_chain_for_section(self.file_path, start_page, end_page)
-            except Exception as e:
-                return f"Failed to create RAG chain for section: {e}"
+            except Exception as e: return f"Failed to create RAG chain for section: {e}"
         qa_chain = self.rag_chain_cache[cache_key]
         result = qa_chain.invoke({"input": query})
         return result.get("answer", "No answer could be generated for the specified section.")
 
-
     def _setup_agent_executor(self):
-        # --- UPDATED TOOL LIST ---
         tools = [
-            Tool(
-                name="classify_document_type",
-                func=self._classify_document_type,
-                description="Use this FIRST to determine if the document is a 'PhD thesis' or a 'scientific paper'."
-            ),
-            # THE NEW TOOL IS ADDED HERE
-            Tool(
-                name="list_table_of_contents",
-                func=self._list_table_of_contents,
-                description="Use this to get a numbered list of all chapter titles and their start pages. This is useful for finding the name of a specific chapter."
-            ),
-            Tool(
-                name="get_page_range_for_chapter",
-                func=self._get_page_range_for_chapter,
-                description="Use this to get the exact start and end page numbers for a chapter you already know the name of. Input should be the chapter title or number (e.g., 'Introduction' or '3')."
-            ),
-            Tool(
-                name="answer_paper_question",
-                func=self._answer_paper_question,
-                description="Use this for a 'paper' to answer a specific question. The input is the user's full question."
-            ),
-            Tool(
-                name="answer_question_on_section",
-                func=self._answer_question_on_section,
-                description="Use this for a 'thesis' ONLY AFTER you have the exact page range from 'get_page_range_for_chapter'. The input MUST be a JSON string with 'query', 'start_page', and 'end_page'."
-            )
+            Tool(name="classify_document_type", func=self._classify_document_type, description="Determines if the document is a 'PhD thesis' or a 'scientific paper'."),
+            Tool(name="analyze_thesis_structure", func=self._analyze_thesis_structure, description="Analyzes a thesis to check if it's a collection of papers or a single monograph based on chapter titles."),
+            Tool(name="list_table_of_contents", func=self._list_table_of_contents, description="Gets a numbered list of all chapter titles and their start pages."),
+            Tool(name="get_page_range_for_chapter", func=self._get_page_range_for_chapter, description="Gets the exact start/end pages for a chapter with a known title or number."),
+            Tool(name="answer_paper_question", func=self._answer_paper_question, description="Answers a specific question about a document classified as a 'paper'."),
+            Tool(name="answer_question_on_section", func=self._answer_question_on_section, description="Answers a question about a specific section of a thesis using a page range."),
         ]
         
-        # --- UPDATED SYSTEM PROMPT ---
-        system_prompt = """You are a ReAct-style agent. Your primary goal is to answer questions about scientific documents by breaking the problem down into steps and using your tools.
+        # This prompt is proven to work well for preventing loops.
+        system_prompt = """You are a ReAct-style agent. You must follow the response format precisely.
 
 You have access to the following tools:
 {tools}
 
-**Your Response Format:**
-You MUST respond with a block of text starting with `Thought:`, followed by `Action:` and `Action Input:`, or `Final Answer:`.
+**RESPONSE FORMAT (CRITICAL):**
+After every `Thought:`, you must choose one of two options:
 
-**EXAMPLE 1: Finding a chapter name**
-Thought: The user wants to know the name of the third chapter. To do this, I need to see the whole table of contents first.
-Action: list_table_of_contents
+**OPTION 1: Use a tool to gather more information.**
+The format MUST be a three-line block:
+
+Thought: [Your reasoning to use a tool]
+Action: [tool_name]
+Action Input: [The input for the tool. Use an empty string "" if the tool takes no input.]
+
+
+**OPTION 2: Give the final answer because you have enough information.**
+The format MUST be a two-line block:
+
+Thought: [Your reasoning that you have the final answer]
+Final Answer: [The direct answer to the user's question]
+
+
+**EXAMPLE: The user asks "is this a paper?"**
+*Your first response:*
+
+Thought: I need to know the document type to answer the question. I will use the classify tool.
+Action: classify_document_type
 Action Input: ""
 
-**EXAMPLE 2: Summarizing a chapter**
-Thought: The user wants a summary of the 'Results' chapter. First, I need to get the page range for that chapter.
-Action: get_page_range_for_chapter
-Action Input: "Results"
+*(After this, you will get an Observation, e.g., "thesis")*
 
-**Your Operational Rules:**
-1.  **Check History First:** If the answer is already in the chat history, use it.
-2.  **Classify First:** If the document type is unknown, your first action MUST be `classify_document_type`.
-3.  **Thesis Workflow (CRITICAL):**
-    a. To find the NAME of a chapter, use `list_table_of_contents`.
-    b. To get page numbers for a known chapter to read its content, use `get_page_range_for_chapter`.
-    c. To read the content of a chapter, use `answer_question_on_section` with the page range from the previous step.
-    d. DO NOT try to guess page numbers or chapter names.
+*Your second response:*
+
+Thought: The previous tool call returned 'thesis'. I now know the document is not a paper. I have enough information to give the final answer.
+Final Answer: No, this document is a thesis, not a paper.
+
+
+**Operational Rules:**
+1.  Always start by classifying the document if the type is unknown.
+2.  For a thesis, if asked about its composition (e.g., "are there sub-papers?"), use `analyze_thesis_structure`.
+3.  Use the other tools as needed, but always aim to reach a `Final Answer`.
 
 When providing an action, it MUST be one of the following: [{tool_names}]
 
@@ -256,9 +268,10 @@ Begin!"""
         )
 
     def invoke(self, query: str, chat_history: list):
-        # ... (same as before)
+        """The main entry point for the user to interact with the agent."""
         return self.agent_executor.invoke({
             "input": query,
             "chat_history": chat_history,
             "file_path": self.file_path
         })
+
