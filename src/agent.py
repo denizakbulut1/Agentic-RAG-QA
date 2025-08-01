@@ -66,7 +66,7 @@ class DocumentAgent:
             is_generic = any(gen_title in title for gen_title in generic_titles)
             
             # A chapter is likely a paper if its title is not generic and is reasonably long
-            if not is_generic and len(title) > 15:
+            if not is_generic and len(title) > 15: #hyperparameter
                 # Use the original title for display
                 identified_papers.append(item.get("title", "Unknown Title"))
 
