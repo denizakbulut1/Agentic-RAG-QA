@@ -9,14 +9,12 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# We can now import your agent directly
 from src.agent import DocumentAgent
 
 # Initialize the Flask application
 app = Flask(__name__)
 
 # Set a secret key for session management.
-# This is crucial for keeping user-specific data separate.
 app.secret_key = os.urandom(24) 
 
 # Configure a temporary upload folder
@@ -51,19 +49,10 @@ def upload_file():
 
         try:
             # --- AGENT INITIALIZATION ---
-            # Instantiate the agent for this specific file.
-            # We will store the agent object in the session.
-            # NOTE: Storing complex objects in session is not ideal for production,
-            # but it is PERFECT for a single-user demo.
-            # The agent itself will cache the RAG chains.
-            
-            # For the demo, we'll store the filepath and re-instantiate the agent on each call.
-            # This is simpler and avoids session serialization issues with complex objects.
             session['filepath'] = filepath
             session['chat_history'] = [] # Initialize chat history for this session
 
-            # We can perform an initial, automatic analysis here.
-            # Let's ask the agent to classify the doc and analyze its structure.
+            # Initial, automatic analysis
             initial_agent = DocumentAgent(file_path=filepath)
             initial_query = (
                 "First, classify this document as a 'thesis' or a 'paper'. "
@@ -71,12 +60,9 @@ def upload_file():
                 "Provide a summary of your findings."
             )
             
-            # We don't need chat history for the very first query.
             result = initial_agent.invoke(initial_query, [])
             initial_analysis = result.get('output', "Could not perform initial analysis.")
             
-            # The agent executor's verbose output is great for the terminal, but too noisy for the UI.
-            # We only send the final answer ('output').
             return jsonify({
                 "message": f"Successfully processed '{filename}'",
                 "initial_analysis": initial_analysis
@@ -105,8 +91,7 @@ def ask_question():
 
     try:
         # --- AGENT INVOCATION ---
-        # Re-instantiate the agent with the filepath from the session.
-        # Your agent's internal caching will prevent re-processing the same file/section.
+        # Internal caching will prevent re-processing the same file/section.
         doc_agent = DocumentAgent(file_path=session['filepath'])
         
         # Get the current chat history from the session
