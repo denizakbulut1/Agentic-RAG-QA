@@ -1,4 +1,4 @@
-# src/agent.py (Final version with title-based structure analysis)
+# src/agent.py
 
 import json
 import re
@@ -34,9 +34,8 @@ class DocumentAgent:
         self.llm = ChatOpenAI(model="gpt-4-turbo-preview", openai_api_key=OPENAI_API_KEY, temperature=0)
         self.agent_executor = self._setup_agent_executor()
 
-    # ---- Tool Methods ----
+    #Tool Methods
 
-    # --- THIS IS THE NEW, SMARTER ANALYSIS METHOD ---
     def _analyze_thesis_structure(self, _: str) -> str:
         """
         Analyzes the thesis's Table of Contents to determine if it's a monograph or a 
@@ -52,18 +51,18 @@ class DocumentAgent:
         if isinstance(toc, str):
             return f"Cannot analyze structure, ToC could not be parsed: {toc}"
 
-        # List of common, non-paper chapter titles (case-insensitive)
+        # List of common, non-paper chapter titles
         generic_titles = [
             "introduction", "summary", "conclusion", "discussion", "background",
             "literature review", "methodology", "methods", "references", "bibliography",
-            "acknowledgements", "abstract", "samenvatting", "dankwoord"
+            "acknowledgements", "abstract"
         ]
 
         identified_papers = []
         for item in toc:
             title = item.get("title", "").lower().strip()
             
-            # Check if the title is generic. We check if any generic term is IN the title.
+            # Check if the title is generic
             is_generic = any(gen_title in title for gen_title in generic_titles)
             
             # A chapter is likely a paper if its title is not generic and is reasonably long
@@ -83,8 +82,7 @@ class DocumentAgent:
         
         self.structure_analysis_cache = result
         return result
-
-    # All other tool methods remain unchanged and correct
+    
     def _classify_document_type(self, _: str) -> str:
         print("--- TOOL: Classifying document type ---")
         extracted_text = ""
@@ -104,7 +102,8 @@ class DocumentAgent:
         chain = prompt | classifier_model
         doc_type = chain.invoke({}).content.strip().lower()
         return doc_type if doc_type in ["thesis", "paper"] else "unknown"
-
+    
+    
     def _get_table_of_contents(self) -> list | str:
         if self.toc_cache is not None:
             print("--- Retrieving ToC from cache ---")
@@ -138,7 +137,7 @@ class DocumentAgent:
             error_msg = f"Failed to parse ToC into JSON. Raw response: {response_content}"
             self.toc_cache = error_msg
             return error_msg
-
+    
     def _list_table_of_contents(self, _: str) -> str:
         print("--- TOOL: Listing Table of Contents ---")
         toc = self._get_table_of_contents()
@@ -165,7 +164,7 @@ class DocumentAgent:
         else: end_page = start_page + 100
         result = {"start_page": start_page, "end_page": end_page}
         return json.dumps(result)
-
+    
     def _answer_paper_question(self, query: str) -> str:
         print(f"--- TOOL: Answering question for entire paper. Query: '{query}' ---")
         cache_key = self.file_path
@@ -173,9 +172,9 @@ class DocumentAgent:
             print("--- RAG chain not in cache. Creating and caching... ---")
             self.rag_chain_cache[cache_key] = create_qa_chain(self.file_path)
         qa_chain = self.rag_chain_cache[cache_key]
-        result = qa_chain.invoke({"input": query})
+        result = qa_chain.invoke({"question": query})
         return result.get("answer", "No answer could be generated.")
-
+    
     def _answer_question_on_section(self, tool_input: str) -> str:
         try:
             params = json.loads(tool_input)
@@ -192,7 +191,7 @@ class DocumentAgent:
         qa_chain = self.rag_chain_cache[cache_key]
         result = qa_chain.invoke({"input": query})
         return result.get("answer", "No answer could be generated for the specified section.")
-
+    
     def _setup_agent_executor(self):
         tools = [
             Tool(name="classify_document_type", func=self._classify_document_type, description="Determines if the document is a 'PhD thesis' or a 'scientific paper'."),
