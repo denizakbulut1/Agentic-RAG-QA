@@ -9,19 +9,20 @@ from langchain.chains.combine_documents import create_stuff_documents_chain
 from langchain_core.prompts import ChatPromptTemplate
 from langchain.chains import create_retrieval_chain
 from dotenv import load_dotenv
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 
 load_dotenv()
 
-# Get your OpenAI API key from the environment variables
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 
 def create_qa_chain(file_path: str):
     """
-    This function processes an ENTIRE PDF file to create a question-answering chain.
-    It is ideal for single scientific papers.
+    This function processes an ENTIRE PDF file to create a conversational RAG chain.
+    Ideal for chatbot-style Q&A over single scientific papers.
     """
-    print(f"--- Creating RAG chain for entire document: {file_path} ---")
+    print(f"--- Creating Conversational RAG chain for entire document: {file_path} ---")
     
     # 1. Load the entire document
     loader = PyPDFLoader(file_path)
@@ -39,20 +40,18 @@ def create_qa_chain(file_path: str):
     retriever = vector_store.as_retriever()
 
     # 5. Create the chat model
-    model = ChatOpenAI(openai_api_key=OPENAI_API_KEY)
+    model = ChatOpenAI(openai_api_key=OPENAI_API_KEY, model="gpt-3.5-turbo", temperature=0.3)
 
-    # 6. Create the prompt template
-    prompt = ChatPromptTemplate.from_template("""
-    Answer the following question based only on the provided context:
+    # 6. Define memory to retain conversation history
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-    Context: {context}
-    
-    Question: {input}
-    """)
-
-    # 7. Create the chains
-    document_chain = create_stuff_documents_chain(model, prompt)
-    retrieval_chain = create_retrieval_chain(retriever, document_chain)
+    # 7. Create the ConversationalRetrievalChain
+    retrieval_chain = ConversationalRetrievalChain.from_llm(
+        llm=model,
+        retriever=retriever,
+        memory=memory,
+        return_source_documents=False
+    )
 
     return retrieval_chain
 
@@ -84,7 +83,6 @@ def create_qa_chain_for_section(file_path: str, start_page: int, end_page: int):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
     docs = text_splitter.create_documents([section_text])
     
-    # The rest of the pipeline is identical
     embeddings = OpenAIEmbeddings(openai_api_key=OPENAI_API_KEY)
     vector_store = FAISS.from_documents(docs, embeddings)
     retriever = vector_store.as_retriever()
