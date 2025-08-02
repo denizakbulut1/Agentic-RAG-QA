@@ -1,4 +1,4 @@
-// static/js/main.js (Updated version)
+// static/js/main.js
 
 document.addEventListener('DOMContentLoaded', () => {
     const uploadForm = document.getElementById('upload-form');
@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const questionInput = document.getElementById('question-input');
     const askButton = document.getElementById('ask-button');
 
-    // Handle File Upload (no changes here)
+    // Handle File Upload
     uploadForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const formData = new FormData(uploadForm);
@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Handle Asking a Question (THIS FUNCTION IS UPDATED)
+    // Handle Asking a Question
     const handleAskQuestion = async () => {
         const question = questionInput.value.trim();
         if (!question) return;
@@ -44,7 +44,6 @@ document.addEventListener('DOMContentLoaded', () => {
         addMessageToChat(question, 'user');
         questionInput.value = '';
 
-        // --- NEW: Create and show the thinking indicator ---
         const thinkingIndicator = document.createElement('div');
         thinkingIndicator.classList.add('message', 'thinking-indicator');
         thinkingIndicator.textContent = 'Agent is thinking';
@@ -60,7 +59,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const result = await response.json();
 
-            // --- NEW: Remove the indicator before showing the final answer ---
             thinkingIndicator.remove();
 
             if (response.ok) {
@@ -82,7 +80,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // Helper to add messages to the chat window (no changes here)
+    // Helper to add messages to the chat window
     function addMessageToChat(text, sender) {
         const messageElement = document.createElement('div');
         messageElement.classList.add('message', `${sender}-message`);
