@@ -130,3 +130,7 @@ The `DocumentAgent` is equipped with a set of tools to perform various tasks:
 *   **`templates/index.html`:** The main HTML file for the web interface.
 *   **`static/`:** Contains the CSS and JavaScript files for the web interface.
 *   **`test_app.py`:** A simple Flask application for testing purposes.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
