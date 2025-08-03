@@ -20,7 +20,6 @@ This project provides a conversational AI agent for analyzing and querying PDF d
 ├── debug_imports.py
 ├── documents/
 ├── env/
-├── rag_researcher_position_task_rescription.pdf
 ├── README.md
 ├── requirements.txt
 ├── src/
